@@ -259,25 +259,15 @@ export async function fetchStockData(symbols?: string[]): Promise<Asset[]> {
 }
 
 // Fetch stock details with historical data
+
 export async function fetchStockDetails(symbol: string): Promise<{
   prices: number[];
   volumes: number[];
 } | null> {
-  try {
-    const candles = await fetchStockCandles(symbol, 'D');
-    
-    if (!candles || candles.s === 'no_data') {
-      return null;
-    }
-    
-    return {
-      prices: candles.c,
-      volumes: candles.v,
-    };
-  } catch (error) {
-    console.error(`Error fetching stock details for ${symbol}:`, error);
-    return null;
-  }
+  // Finnhub free tier doesn't support candles - return null
+  // Upgrade to paid plan for historical data
+  console.log(`Stock candles not available on Finnhub free tier for ${symbol}`);
+  return null;
 }
 
 // ============== Search APIs ==============

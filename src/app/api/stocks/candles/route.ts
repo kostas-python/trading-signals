@@ -42,8 +42,10 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error(`Finnhub API error: ${response.status}`);
-    }
+  const errorData = await response.text();
+  console.error(`Finnhub error for ${symbol}:`, errorData);
+  throw new Error(`Finnhub API error: ${response.status} - ${errorData}`);
+}
 
     const data = await response.json();
     
