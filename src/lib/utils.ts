@@ -1,16 +1,18 @@
 import { SignalStrength } from '@/types';
 
 // Format large numbers
-export function formatNumber(num: number, decimals = 2): string {
-  if (num >= 1e12) return `$${(num / 1e12).toFixed(decimals)}T`;
-  if (num >= 1e9) return `$${(num / 1e9).toFixed(decimals)}B`;
-  if (num >= 1e6) return `$${(num / 1e6).toFixed(decimals)}M`;
-  if (num >= 1e3) return `$${(num / 1e3).toFixed(decimals)}K`;
-  return `$${num.toFixed(decimals)}`;
+export function formatNumber(num: number | null | undefined): string {
+  if (num == null) return '$0';
+  if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
+  if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
+  if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+  if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
+  return `$${num.toFixed(2)}`;
 }
 
 // Format price based on value
-export function formatPrice(price: number): string {
+export function formatPrice(price: number | null | undefined): string {
+  if (price == null) return '$0.00';
   if (price >= 1000) return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   if (price >= 1) return `$${price.toFixed(2)}`;
   if (price >= 0.01) return `$${price.toFixed(4)}`;
@@ -18,16 +20,16 @@ export function formatPrice(price: number): string {
 }
 
 // Format percentage
-export function formatPercent(percent: number): string {
+export function formatPercent(percent: number | null | undefined): string {
+  if (percent == null) return '0.00%';
   const sign = percent >= 0 ? '+' : '';
   return `${sign}${percent.toFixed(2)}%`;
 }
 
 // Get color class based on value
-export function getChangeColor(value: number): string {
-  if (value > 0) return 'text-signal-buy';
-  if (value < 0) return 'text-signal-sell';
-  return 'text-terminal-muted';
+export function getChangeColor(value: number | null | undefined): string {
+  if (value == null || value === 0) return 'text-terminal-muted';
+  return value > 0 ? 'text-signal-buy' : 'text-signal-sell';
 }
 
 // Get signal color
