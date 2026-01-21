@@ -27,7 +27,7 @@ export const POPULAR_CRYPTO = [
 export const POPULAR_STOCKS = [
   'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
   'META', 'TSLA', 'JPM', 'V', 'WMT',
-  'JNJ', 'PG', 'MA', 'HD', 'DIS',
+  'JNJ', 'PG', 'MA', 'ANET', 'DIS',
 ];
 
 // Stock name mapping
@@ -45,7 +45,7 @@ const STOCK_NAMES: Record<string, string> = {
   'JNJ': 'Johnson & Johnson',
   'PG': 'Procter & Gamble',
   'MA': 'Mastercard Inc.',
-  'HD': 'Home Depot',
+  'ANET': 'Arista Networks',
   'DIS': 'Walt Disney Co.',
   'NFLX': 'Netflix Inc.',
   'PYPL': 'PayPal Holdings',
