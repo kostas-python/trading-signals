@@ -325,6 +325,570 @@ export const ATR: Indicator = {
   },
 };
 
+// ============== NEW INDICATORS ==============
+
+// DMI (Directional Movement Index) - From BTC DMI Slapper
+export const DMI: Indicator = {
+  id: 'dmi',
+  name: 'DMI',
+  shortName: 'DMI',
+  description: 'Directional Movement Index - measures trend direction and strength using +DI, -DI, and ADX',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const len = 15;
+    const adxSmoothing = 34;
+    
+    if (prices.length < Math.max(len, adxSmoothing) + 5) {
+      return { name: 'DMI', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    // Calculate True Range and Directional Movement
+    const calcDMI = () => {
+      const plusDM: number[] = [];
+      const minusDM: number[] = [];
+      const tr: number[] = [];
+
+      for (let i = 1; i < prices.length; i++) {
+        const high = prices[i];
+        const low = prices[i];
+        const prevHigh = prices[i - 1];
+        const prevLow = prices[i - 1];
+        const prevClose = prices[i - 1];
+
+        // Simplified TR calculation using close prices
+        const trValue = Math.abs(high - low);
+        tr.push(trValue || 0.0001);
+
+        const upMove = high - prevHigh;
+        const downMove = prevLow - low;
+
+        plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+        minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
+      }
+
+      // RMA (Wilder's smoothing)
+      const rma = (arr: number[], period: number): number[] => {
+        const result: number[] = [];
+        let sum = 0;
+        for (let i = 0; i < arr.length; i++) {
+          if (i < period) {
+            sum += arr[i];
+            result.push(sum / (i + 1));
+          } else {
+            const prev = result[result.length - 1];
+            result.push((prev * (period - 1) + arr[i]) / period);
+          }
+        }
+        return result;
+      };
+
+      const smoothTR = rma(tr, len);
+      const smoothPlusDM = rma(plusDM, len);
+      const smoothMinusDM = rma(minusDM, len);
+
+      const plusDI: number[] = [];
+      const minusDI: number[] = [];
+      const dx: number[] = [];
+
+      for (let i = 0; i < smoothTR.length; i++) {
+        const pdi = smoothTR[i] > 0 ? (smoothPlusDM[i] / smoothTR[i]) * 100 : 0;
+        const mdi = smoothTR[i] > 0 ? (smoothMinusDM[i] / smoothTR[i]) * 100 : 0;
+        plusDI.push(pdi);
+        minusDI.push(mdi);
+        const sum = pdi + mdi;
+        dx.push(sum > 0 ? (Math.abs(pdi - mdi) / sum) * 100 : 0);
+      }
+
+      const adx = rma(dx, adxSmoothing);
+
+      return {
+        plusDI: plusDI[plusDI.length - 1],
+        minusDI: minusDI[minusDI.length - 1],
+        adx: adx[adx.length - 1],
+        prevPlusDI: plusDI[plusDI.length - 2],
+        prevMinusDI: minusDI[minusDI.length - 2],
+      };
+    };
+
+    const { plusDI, minusDI, adx, prevPlusDI, prevMinusDI } = calcDMI();
+
+    // DMI Slapper Logic
+    const dmiCrossUp = prevPlusDI <= prevMinusDI && plusDI > minusDI;
+    const dmiCrossDown = prevPlusDI >= prevMinusDI && plusDI < minusDI;
+    const dmiLong = (plusDI > adx && adx > 20 && plusDI > 20) || (dmiCrossUp && adx > 40) || (adx > 30 && minusDI < plusDI && plusDI > 25);
+    const dmiShort = (dmiCrossDown && adx > 20) || (adx > 32 && minusDI > plusDI) || (minusDI > adx && adx > 40 && minusDI > 25);
+
+    let signal: SignalStrength = 'neutral';
+    let description = `+DI: ${plusDI.toFixed(1)}, -DI: ${minusDI.toFixed(1)}, ADX: ${adx.toFixed(1)}`;
+
+    if (dmiCrossUp && adx > 40) {
+      signal = 'strong_buy';
+      description = 'Strong bullish crossover with high ADX';
+    } else if (dmiLong) {
+      signal = 'buy';
+      description = 'Bullish trend - +DI dominant';
+    } else if (dmiCrossDown && adx > 40) {
+      signal = 'strong_sell';
+      description = 'Strong bearish crossover with high ADX';
+    } else if (dmiShort) {
+      signal = 'sell';
+      description = 'Bearish trend - -DI dominant';
+    } else if (adx < 20) {
+      description = 'Weak trend - ADX below 20';
+    }
+
+    return { name: 'DMI', value: Math.round(adx), signal, description };
+  },
+};
+
+// STC (Schaff Trend Cycle)
+export const STC: Indicator = {
+  id: 'stc',
+  name: 'Schaff Trend Cycle',
+  shortName: 'STC',
+  description: 'Combines MACD with Stochastic for cycle identification. Below 25 = oversold, above 75 = overbought',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const stcLength = 14;
+    const fastLength = 25;
+    const slowLength = 60;
+    const factor = 1.5;
+
+    if (prices.length < slowLength + stcLength) {
+      return { name: 'STC', value: 50, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    // EMA calculation
+    const ema = (data: number[], period: number): number[] => {
+      const k = 2 / (period + 1);
+      const result: number[] = [data[0]];
+      for (let i = 1; i < data.length; i++) {
+        result.push(data[i] * k + result[i - 1] * (1 - k));
+      }
+      return result;
+    };
+
+    const fastEMA = ema(prices, fastLength);
+    const slowEMA = ema(prices, slowLength);
+    const macdLine = fastEMA.map((f, i) => f - slowEMA[i]);
+
+    // Stochastic of MACD
+    const stochastic = (data: number[], period: number): number[] => {
+      const result: number[] = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+          result.push(50);
+          continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const low = Math.min(...slice);
+        const high = Math.max(...slice);
+        const range = high - low;
+        result.push(range > 0 ? ((data[i] - low) / range) * 100 : result[result.length - 1] || 50);
+      }
+      return result;
+    };
+
+    // First stochastic
+    const stoch1 = stochastic(macdLine, stcLength);
+    
+    // Smooth with factor
+    const smooth1: number[] = [stoch1[0]];
+    for (let i = 1; i < stoch1.length; i++) {
+      smooth1.push(smooth1[i - 1] + factor * (stoch1[i] - smooth1[i - 1]));
+    }
+
+    // Second stochastic
+    const stoch2 = stochastic(smooth1, stcLength);
+    
+    // Final STC
+    const stc: number[] = [stoch2[0]];
+    for (let i = 1; i < stoch2.length; i++) {
+      stc.push(stc[i - 1] + factor * (stoch2[i] - stc[i - 1]));
+    }
+
+    const currentSTC = stc[stc.length - 1];
+    const prevSTC = stc[stc.length - 2];
+    const prev2STC = stc[stc.length - 3];
+
+    let signal: SignalStrength = 'neutral';
+    let description = `STC at ${currentSTC.toFixed(1)}`;
+
+    // Turning points
+    const turningUp = prev2STC >= prevSTC && prevSTC <= currentSTC && currentSTC < 60;
+    const turningDown = prev2STC <= prevSTC && prevSTC >= currentSTC && currentSTC > 40;
+
+    if (currentSTC < 25) {
+      signal = 'strong_buy';
+      description = 'Oversold - potential reversal up';
+    } else if (turningUp) {
+      signal = 'buy';
+      description = 'STC turning up from low';
+    } else if (currentSTC > 75) {
+      signal = 'strong_sell';
+      description = 'Overbought - potential reversal down';
+    } else if (turningDown) {
+      signal = 'sell';
+      description = 'STC turning down from high';
+    }
+
+    return { name: 'STC', value: Math.round(currentSTC), signal, description };
+  },
+};
+
+// Aroon Indicator
+export const Aroon: Indicator = {
+  id: 'aroon',
+  name: 'Aroon',
+  shortName: 'AROON',
+  description: 'Identifies trend changes and strength. Aroon Up > Aroon Down = bullish',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const length = 25;
+    
+    if (prices.length < length + 1) {
+      return { name: 'Aroon', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    const recent = prices.slice(-length - 1);
+    
+    // Find bars since highest high and lowest low
+    let highestIdx = 0;
+    let lowestIdx = 0;
+    let highest = recent[0];
+    let lowest = recent[0];
+    
+    for (let i = 0; i < recent.length; i++) {
+      if (recent[i] >= highest) {
+        highest = recent[i];
+        highestIdx = i;
+      }
+      if (recent[i] <= lowest) {
+        lowest = recent[i];
+        lowestIdx = i;
+      }
+    }
+
+    const aroonUp = ((length - (recent.length - 1 - highestIdx)) / length) * 100;
+    const aroonDown = ((length - (recent.length - 1 - lowestIdx)) / length) * 100;
+    const aroonOsc = aroonUp - aroonDown;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `Up: ${aroonUp.toFixed(0)}, Down: ${aroonDown.toFixed(0)}`;
+
+    if (aroonUp > 70 && aroonDown < 30) {
+      signal = 'strong_buy';
+      description = 'Strong uptrend - Aroon Up dominant';
+    } else if (aroonUp > aroonDown && aroonUp > 50) {
+      signal = 'buy';
+      description = 'Uptrend forming';
+    } else if (aroonDown > 70 && aroonUp < 30) {
+      signal = 'strong_sell';
+      description = 'Strong downtrend - Aroon Down dominant';
+    } else if (aroonDown > aroonUp && aroonDown > 50) {
+      signal = 'sell';
+      description = 'Downtrend forming';
+    } else {
+      description = 'Consolidation - no clear trend';
+    }
+
+    return { name: 'Aroon', value: Math.round(aroonOsc), signal, description };
+  },
+};
+
+// SuperTrend Indicator
+export const SuperTrend: Indicator = {
+  id: 'supertrend',
+  name: 'SuperTrend',
+  shortName: 'ST',
+  description: 'Trend-following indicator combining ATR with price action',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const atrPeriod = 10;
+    const factor = 3;
+
+    if (prices.length < atrPeriod + 5) {
+      return { name: 'SuperTrend', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    // Calculate ATR
+    const tr: number[] = [];
+    for (let i = 1; i < prices.length; i++) {
+      tr.push(Math.abs(prices[i] - prices[i - 1]));
+    }
+
+    const atr: number[] = [];
+    for (let i = 0; i < tr.length; i++) {
+      if (i < atrPeriod - 1) {
+        atr.push(tr.slice(0, i + 1).reduce((a, b) => a + b, 0) / (i + 1));
+      } else {
+        const prev = atr[atr.length - 1];
+        atr.push((prev * (atrPeriod - 1) + tr[i]) / atrPeriod);
+      }
+    }
+
+    // SuperTrend calculation
+    let direction = 1; // 1 = up, -1 = down
+    let superTrend = prices[atrPeriod];
+    
+    for (let i = atrPeriod; i < prices.length; i++) {
+      const atrVal = atr[i - 1] * factor;
+      const basicUpperBand = prices[i] + atrVal;
+      const basicLowerBand = prices[i] - atrVal;
+
+      if (prices[i] > superTrend) {
+        direction = 1;
+        superTrend = basicLowerBand;
+      } else {
+        direction = -1;
+        superTrend = basicUpperBand;
+      }
+    }
+
+    const currentPrice = prices[prices.length - 1];
+    const percentFromST = ((currentPrice - superTrend) / superTrend) * 100;
+
+    let signal: SignalStrength = 'neutral';
+    let description = direction > 0 ? 'Uptrend' : 'Downtrend';
+
+    if (direction > 0) {
+      signal = percentFromST > 5 ? 'strong_buy' : 'buy';
+      description = `Bullish - price ${percentFromST.toFixed(1)}% above SuperTrend`;
+    } else {
+      signal = percentFromST < -5 ? 'strong_sell' : 'sell';
+      description = `Bearish - price ${Math.abs(percentFromST).toFixed(1)}% below SuperTrend`;
+    }
+
+    return { name: 'SuperTrend', value: direction, signal, description };
+  },
+};
+
+// EMA Crossover (9/21)
+export const EMACrossover: Indicator = {
+  id: 'ema_cross',
+  name: 'EMA Crossover',
+  shortName: 'EMA',
+  description: 'Exponential Moving Average 9/21 crossover for trend direction',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    if (prices.length < 25) {
+      return { name: 'EMA Cross', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    const calcEMA = (data: number[], period: number): number[] => {
+      const k = 2 / (period + 1);
+      const result: number[] = [data[0]];
+      for (let i = 1; i < data.length; i++) {
+        result.push(data[i] * k + result[i - 1] * (1 - k));
+      }
+      return result;
+    };
+
+    const ema9 = calcEMA(prices, 9);
+    const ema21 = calcEMA(prices, 21);
+
+    const current9 = ema9[ema9.length - 1];
+    const current21 = ema21[ema21.length - 1];
+    const prev9 = ema9[ema9.length - 2];
+    const prev21 = ema21[ema21.length - 2];
+
+    const diff = ((current9 - current21) / current21) * 100;
+    const crossUp = prev9 <= prev21 && current9 > current21;
+    const crossDown = prev9 >= prev21 && current9 < current21;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `EMA9 ${diff >= 0 ? 'above' : 'below'} EMA21 by ${Math.abs(diff).toFixed(2)}%`;
+
+    if (crossUp) {
+      signal = 'strong_buy';
+      description = 'Bullish crossover - EMA9 crossed above EMA21';
+    } else if (crossDown) {
+      signal = 'strong_sell';
+      description = 'Bearish crossover - EMA9 crossed below EMA21';
+    } else if (diff > 2) {
+      signal = 'buy';
+      description = 'Bullish - EMA9 well above EMA21';
+    } else if (diff < -2) {
+      signal = 'sell';
+      description = 'Bearish - EMA9 well below EMA21';
+    }
+
+    return { name: 'EMA Cross', value: Number(diff.toFixed(2)), signal, description };
+  },
+};
+
+// Williams %R
+export const WilliamsR: Indicator = {
+  id: 'williams_r',
+  name: 'Williams %R',
+  shortName: 'W%R',
+  description: 'Momentum indicator showing overbought/oversold. Below -80 = oversold, above -20 = overbought',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const period = 14;
+    
+    if (prices.length < period) {
+      return { name: 'Williams %R', value: -50, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    const recent = prices.slice(-period);
+    const high = Math.max(...recent);
+    const low = Math.min(...recent);
+    const current = prices[prices.length - 1];
+    
+    const wr = high !== low ? ((high - current) / (high - low)) * -100 : -50;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `W%R at ${wr.toFixed(1)}`;
+
+    if (wr > -20) {
+      signal = 'sell';
+      description = 'Overbought (above -20) - potential pullback';
+    } else if (wr < -80) {
+      signal = 'buy';
+      description = 'Oversold (below -80) - potential bounce';
+    } else if (wr > -40) {
+      signal = 'neutral';
+      description = 'Upper neutral zone';
+    } else if (wr < -60) {
+      signal = 'neutral';
+      description = 'Lower neutral zone';
+    }
+
+    return { name: 'Williams %R', value: Math.round(wr), signal, description };
+  },
+};
+
+// CCI (Commodity Channel Index)
+export const CCI: Indicator = {
+  id: 'cci',
+  name: 'CCI',
+  shortName: 'CCI',
+  description: 'Measures price deviation from average. Above +100 = overbought, below -100 = oversold',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const period = 20;
+    
+    if (prices.length < period) {
+      return { name: 'CCI', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    const recent = prices.slice(-period);
+    const sma = recent.reduce((a, b) => a + b, 0) / period;
+    const meanDev = recent.reduce((sum, p) => sum + Math.abs(p - sma), 0) / period;
+    const cci = meanDev > 0 ? (recent[recent.length - 1] - sma) / (0.015 * meanDev) : 0;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `CCI at ${cci.toFixed(1)}`;
+
+    if (cci > 200) {
+      signal = 'strong_sell';
+      description = 'Extremely overbought (>200)';
+    } else if (cci > 100) {
+      signal = 'sell';
+      description = 'Overbought (>100)';
+    } else if (cci < -200) {
+      signal = 'strong_buy';
+      description = 'Extremely oversold (<-200)';
+    } else if (cci < -100) {
+      signal = 'buy';
+      description = 'Oversold (<-100)';
+    }
+
+    return { name: 'CCI', value: Math.round(cci), signal, description };
+  },
+};
+
+// ROC (Rate of Change)
+export const ROC: Indicator = {
+  id: 'roc',
+  name: 'Rate of Change',
+  shortName: 'ROC',
+  description: 'Measures percentage price change over a period',
+  enabled: false,
+  calculate: (prices: number[]): IndicatorResult => {
+    const period = 12;
+    
+    if (prices.length < period + 1) {
+      return { name: 'ROC', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    const current = prices[prices.length - 1];
+    const past = prices[prices.length - 1 - period];
+    const roc = ((current - past) / past) * 100;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `${roc >= 0 ? '+' : ''}${roc.toFixed(2)}% over ${period} periods`;
+
+    if (roc > 10) {
+      signal = 'strong_buy';
+      description = 'Strong momentum up';
+    } else if (roc > 3) {
+      signal = 'buy';
+      description = 'Positive momentum';
+    } else if (roc < -10) {
+      signal = 'strong_sell';
+      description = 'Strong momentum down';
+    } else if (roc < -3) {
+      signal = 'sell';
+      description = 'Negative momentum';
+    }
+
+    return { name: 'ROC', value: Number(roc.toFixed(2)), signal, description };
+  },
+};
+
+// VWAP Deviation (simplified - uses volume if available)
+export const VWAPDeviation: Indicator = {
+  id: 'vwap',
+  name: 'VWAP Deviation',
+  shortName: 'VWAP',
+  description: 'Price deviation from Volume Weighted Average Price',
+  enabled: false,
+  calculate: (prices: number[], volumes?: number[]): IndicatorResult => {
+    if (prices.length < 20) {
+      return { name: 'VWAP Dev', value: 0, signal: 'neutral', description: 'Insufficient data' };
+    }
+
+    // Calculate VWAP (or SMA if no volume)
+    let vwap: number;
+    if (volumes && volumes.length === prices.length) {
+      let cumVolume = 0;
+      let cumVolumePrice = 0;
+      for (let i = 0; i < prices.length; i++) {
+        cumVolume += volumes[i];
+        cumVolumePrice += prices[i] * volumes[i];
+      }
+      vwap = cumVolumePrice / cumVolume;
+    } else {
+      // Fallback to SMA
+      vwap = prices.reduce((a, b) => a + b, 0) / prices.length;
+    }
+
+    const currentPrice = prices[prices.length - 1];
+    const deviation = ((currentPrice - vwap) / vwap) * 100;
+
+    let signal: SignalStrength = 'neutral';
+    let description = `Price ${deviation >= 0 ? 'above' : 'below'} VWAP by ${Math.abs(deviation).toFixed(2)}%`;
+
+    if (deviation > 5) {
+      signal = 'sell';
+      description = 'Price far above VWAP - potential pullback';
+    } else if (deviation > 2) {
+      signal = 'neutral';
+      description = 'Price above VWAP - bullish bias';
+    } else if (deviation < -5) {
+      signal = 'buy';
+      description = 'Price far below VWAP - potential bounce';
+    } else if (deviation < -2) {
+      signal = 'neutral';
+      description = 'Price below VWAP - bearish bias';
+    }
+
+    return { name: 'VWAP Dev', value: Number(deviation.toFixed(2)), signal, description };
+  },
+};
+
 // All available indicators
 export const ALL_INDICATORS: Indicator[] = [
   RSI,
@@ -335,6 +899,16 @@ export const ALL_INDICATORS: Indicator[] = [
   Momentum,
   Stochastic,
   ATR,
+  // New indicators
+  DMI,
+  STC,
+  Aroon,
+  SuperTrend,
+  EMACrossover,
+  WilliamsR,
+  CCI,
+  ROC,
+  VWAPDeviation,
 ];
 
 // Calculate combined signal from all enabled indicators
