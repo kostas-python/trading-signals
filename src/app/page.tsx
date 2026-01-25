@@ -17,6 +17,7 @@ import {
   SettingsModal,
   AIChatPanel,
 } from '@/components';
+import { SentimentPanel } from '@/components/SentimentPanel';
 
 type ViewMode = 'all' | 'watchlist';
 
@@ -272,6 +273,10 @@ export default function Dashboard() {
             </>
           )}
         </motion.div>
+
+        {/* Sentiment panel from components */}
+        
+        <SentimentPanel />
 
         {/* Asset grid */}
         {isLoading ? (
