@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { createCompletion } from '@/lib/ai-client';
 import { fetchMarketSentiment } from '@/lib/sentiment-api';
-
-// Lazy initialize OpenAI client
-function getOpenAIClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  return new OpenAI({ apiKey });
-}
+import { AI_MODELS, DEFAULT_MODEL } from '@/lib/ai-config';
 
 export async function POST(request: NextRequest) {
-  const openai = getOpenAIClient();
-  
-  if (!openai) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured' },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await request.json();
-    const { message, context } = body;
+    const { message, context, model: modelKey } = body;
 
     if (!message) {
       return NextResponse.json(
@@ -29,6 +14,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get model configuration
+    const modelConfig = AI_MODELS[modelKey] || AI_MODELS[DEFAULT_MODEL];
+    const modelId = modelConfig.id;
 
     // Build context from current market data
     const marketContext = context?.assets
@@ -44,12 +33,7 @@ export async function POST(request: NextRequest) {
       console.error('Failed to fetch sentiment for chat:', e);
     }
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a helpful trading assistant for the SignalPulse dashboard. You help users understand their portfolio, analyze market conditions, and explain technical indicators.
+    const systemPrompt = `You are a helpful trading assistant for the SignalPulse dashboard. You help users understand their portfolio, analyze market conditions, and explain technical indicators.
 
 Current Market Context:
 ${marketContext || 'No market data loaded yet.'}
@@ -89,24 +73,28 @@ Guidelines:
 - When asked about market conditions, ALWAYS reference the sentiment data
 - Highlight when sentiment and technicals conflict
 - Never provide financial advice or guarantee outcomes
-- Use specific numbers from the data`
-        },
-        {
-          role: 'user',
-          content: message
-        }
+- Use specific numbers from the data`;
+
+    const result = await createCompletion({
+      model: modelId,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
       ],
-      max_tokens: 800,
       temperature: 0.7,
+      maxTokens: 800,
     });
 
-    const response = completion.choices[0]?.message?.content || 'I couldn\'t process that request.';
-
-    return NextResponse.json({ response });
+    return NextResponse.json({ 
+      response: result.content,
+      model: result.model,
+      provider: result.provider,
+    });
   } catch (error) {
     console.error('Error in AI chat:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process message';
     return NextResponse.json(
-      { error: 'Failed to process message' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
