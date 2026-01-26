@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Zap, Brain, ChevronDown, Check, Lock, Crown, Gem, Star } from 'lucide-react';
-import { AI_MODELS, PROVIDER_STYLES, AIProvider, DEFAULT_MODEL } from '@/lib/ai-config';
+import { AI_MODELS, AIProvider, DEFAULT_MODEL, PROVIDER_STYLES } from '@/lib/ai-config';
 
 interface ModelSelectorProps {
   selectedModel: string;
