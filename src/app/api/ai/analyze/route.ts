@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { createCompletion } from '@/lib/ai-client';
 import { fetchMarketSentiment } from '@/lib/sentiment-api';
-
-// Lazy initialize OpenAI client
-function getOpenAIClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  return new OpenAI({ apiKey });
-}
+import { AI_MODELS, DEFAULT_MODEL } from '@/lib/ai-config';
 
 export async function POST(request: NextRequest) {
-  const openai = getOpenAIClient();
-  
-  if (!openai) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured' },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await request.json();
-    const { asset, indicators, signal, prices } = body;
+    const { asset, indicators, signal, prices, model: modelKey } = body;
 
     if (!asset || !indicators) {
       return NextResponse.json(
@@ -29,6 +14,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get model configuration
+    const modelConfig = AI_MODELS[modelKey] || AI_MODELS[DEFAULT_MODEL];
+    const modelId = modelConfig.id;
 
     // Fetch market sentiment for crypto assets
     let sentimentData = null;
@@ -43,12 +32,7 @@ export async function POST(request: NextRequest) {
     // Build prompt with market data context
     const prompt = buildAnalysisPrompt(asset, indicators, signal, prices, sentimentData);
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a professional technical and sentiment market analyst.
+    const systemPrompt = `You are a professional technical and sentiment market analyst.
 
 Your task is to analyze the provided market data, technical indicators, AND market sentiment data to produce a concise, actionable analysis.
 
@@ -75,21 +59,22 @@ Response format (use these exact section titles):
 Style guidelines:
 - Professional but accessible tone
 - Be specific with numbers
-- Under 250 words total`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
+- Under 250 words total`;
+
+    const result = await createCompletion({
+      model: modelId,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
       ],
       temperature: 0.3,
-      max_tokens: 400,
+      maxTokens: 400,
     });
 
-    const analysis = completion.choices[0]?.message?.content || 'Unable to generate analysis.';
-
     return NextResponse.json({ 
-      analysis,
+      analysis: result.content,
+      model: result.model,
+      provider: result.provider,
       sentiment: sentimentData ? {
         fearGreed: sentimentData.fearGreed?.value,
         fundingRate: sentimentData.fundingRate?.ratePercent,
@@ -98,8 +83,9 @@ Style guidelines:
     });
   } catch (error) {
     console.error('Error generating AI analysis:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate analysis';
     return NextResponse.json(
-      { error: 'Failed to generate analysis' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
