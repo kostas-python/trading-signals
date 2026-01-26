@@ -65,12 +65,14 @@ async function createOpenAICompletion(options: CompletionOptions): Promise<Compl
   };
 }
 
-// Groq completion (Llama 3.1)
+// Groq completion (Llama 3.3)
 async function createGroqCompletion(options: CompletionOptions): Promise<CompletionResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error('Groq API key not configured. Get free key at console.groq.com');
   }
+
+  console.log('Groq API call with model:', options.model);
 
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -87,8 +89,9 @@ async function createGroqCompletion(options: CompletionOptions): Promise<Complet
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq API error: ${error}`);
+    const errorText = await response.text();
+    console.error('Groq API error:', response.status, errorText);
+    throw new Error(`Groq API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();

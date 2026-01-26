@@ -24,12 +24,12 @@ export const AI_MODELS: Record<string, AIModel> = {
     speed: 'fast',
     quality: 3,
   },
-  'llama-3.1-405b': {
-    id: 'llama-3.1-405b-reasoning',
+  'llama-3.3-70b': {
+    id: 'llama-3.3-70b-versatile',
     provider: 'groq',
-    name: 'Llama 3.1 405B',
-    description: 'Most powerful open-source model, FREE via Groq',
-    contextWindow: 131072,
+    name: 'Llama 3.3 70B',
+    description: 'Best open-source model, FREE & ultra-fast via Groq',
+    contextWindow: 128000,
     costPer1MTokens: 'free',
     speed: 'fast',
     quality: 5,

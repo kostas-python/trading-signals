@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, TrendingDown, ExternalLink, Star, Sparkles, Loader2 } from 'lucide-react';
 import { Asset, CombinedSignal, IndicatorResult } from '@/types';
-import { formatPrice, formatPercent, formatNumber, getChangeColor, getSignalColor } from '@/lib/utils';
+import { formatPrice, formatPercent, formatNumber, getChangeColor } from '@/lib/utils';
 import { SignalGauge } from './SignalGauge';
 import { SignalBadge } from './SignalBadge';
 import { Sparkline } from './Sparkline';
+import { ModelSelector } from './ModelSelector';
+import { AI_MODELS, PROVIDER_STYLES } from '@/lib/ai-config';
 
 interface AssetDetailProps {
   asset: Asset | null;
@@ -26,15 +28,21 @@ export function AssetDetail({
 }: AssetDetailProps) {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
+  const [usedProvider, setUsedProvider] = useState<string | null>(null);
 
   if (!asset) return null;
 
   const isUp = asset.changePercent24h >= 0;
+  const currentModel = AI_MODELS[selectedModel];
+  const currentStyle = currentModel ? PROVIDER_STYLES[currentModel.provider] : PROVIDER_STYLES.openai;
 
   const fetchAIAnalysis = async () => {
     if (!signal) return;
     
     setIsLoadingAI(true);
+    setAiAnalysis(null);
+    
     try {
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
@@ -55,6 +63,7 @@ export function AssetDetail({
             bearishCount: signal.bearishCount,
           },
           prices: asset.sparkline,
+          model: selectedModel, // Pass selected model
         }),
       });
 
@@ -62,9 +71,12 @@ export function AssetDetail({
 
       const data = await response.json();
       setAiAnalysis(data.analysis);
+      setUsedProvider(data.provider);
     } catch (error) {
       console.error('AI analysis error:', error);
-      setAiAnalysis('Unable to generate analysis. Please ensure your OpenAI API key is configured.');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setAiAnalysis(`Unable to generate analysis.\n\nError: ${errorMsg}\n\nPlease ensure your API key is configured in .env.local`);
+      setUsedProvider(null);
     } finally {
       setIsLoadingAI(false);
     }
@@ -199,50 +211,67 @@ export function AssetDetail({
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display text-lg font-semibold text-white flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-accent-purple" />
+                  <span className={`text-xl`}>{currentStyle.icon}</span>
                   AI Analysis
                 </h3>
-                {!aiAnalysis && (
+                <div className="flex items-center gap-2">
+                  <ModelSelector
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    compact
+                  />
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={fetchAIAnalysis}
                     disabled={isLoadingAI}
-                    className="flex items-center gap-2 rounded-lg border border-accent-purple/50 bg-accent-purple/10 px-4 py-2 text-sm text-accent-purple transition-colors hover:bg-accent-purple/20 disabled:opacity-50"
+                    className={`
+                      flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all
+                      bg-gradient-to-r ${currentStyle.gradient} ${currentStyle.border}
+                      disabled:opacity-50
+                    `}
                   >
                     {isLoadingAI ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Analyzing...
+                        <span className="text-white">Analyzing...</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="h-4 w-4" />
-                        Generate Analysis
+                        <Sparkles className="h-4 w-4 text-white" />
+                        <span className="text-white">{aiAnalysis ? 'Regenerate' : 'Generate'}</span>
                       </>
                     )}
                   </motion.button>
-                )}
+                </div>
               </div>
 
               {aiAnalysis && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4"
+                  className={`rounded-xl border p-4 bg-gradient-to-br ${currentStyle.gradient} border-opacity-30`}
+                  style={{ borderColor: currentStyle.border.includes('emerald') ? 'rgb(16 185 129 / 0.3)' : currentStyle.border.includes('orange') ? 'rgb(249 115 22 / 0.3)' : 'rgb(139 92 246 / 0.3)' }}
                 >
                   <p className="whitespace-pre-wrap text-sm text-gray-200 leading-relaxed">
                     {aiAnalysis}
                   </p>
-                  <p className="mt-3 text-xs text-terminal-muted italic">
-                    ⚠️ This is technical analysis only, not financial advice.
-                  </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-xs text-terminal-muted italic">
+                      ⚠️ This is technical analysis only, not financial advice.
+                    </p>
+                    {usedProvider && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${currentStyle.badge}`}>
+                        via {usedProvider}
+                      </span>
+                    )}
+                  </div>
                 </motion.div>
               )}
 
               {!aiAnalysis && !isLoadingAI && (
                 <p className="text-sm text-terminal-muted">
-                  Click &quot;Generate Analysis&quot; to get AI-powered insights based on the technical indicators.
+                  Select a model and click &quot;Generate&quot; to get AI-powered insights including market sentiment analysis.
                 </p>
               )}
             </div>
