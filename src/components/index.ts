@@ -10,3 +10,4 @@ export { AssetCardSkeleton, LoadingGrid } from './LoadingSkeleton';
 export { SettingsModal } from './SettingsModal';
 export { AIChatPanel } from './AIChatPanel';
 export { SentimentPanel } from './SentimentPanel';
+export { ModelSelector } from './ModelSelector';
