@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { fetchMarketSentiment } from '@/lib/sentiment-api';
 
 // Lazy initialize OpenAI client
 function getOpenAIClient(): OpenAI | null {
@@ -34,6 +35,15 @@ export async function POST(request: NextRequest) {
       ? buildMarketContext(context.assets, context.signals)
       : '';
 
+    // Always fetch sentiment data for comprehensive context
+    let sentimentContext = '';
+    try {
+      const sentiment = await fetchMarketSentiment('BTCUSDT');
+      sentimentContext = buildSentimentContext(sentiment);
+    } catch (e) {
+      console.error('Failed to fetch sentiment for chat:', e);
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -44,26 +54,49 @@ export async function POST(request: NextRequest) {
 Current Market Context:
 ${marketContext || 'No market data loaded yet.'}
 
+${sentimentContext ? `Current Market Sentiment:\n${sentimentContext}` : ''}
+
 Key capabilities:
-- Explain what technical indicators mean
+- Explain what technical indicators mean (RSI, MACD, Bollinger Bands, etc.)
+- Analyze market sentiment (Fear & Greed, Funding Rates, Long/Short Ratio)
 - Compare assets and their signals
+- Identify conflicting signals between technicals and sentiment
 - Suggest which assets to watch based on signals
 - Explain market trends and patterns
-- Answer questions about specific assets
+
+IMPORTANT - Sentiment Interpretation (CONTRARIAN):
+- Fear & Greed Index: 
+  * 0-25 = Extreme Fear = historically good buying opportunity
+  * 25-45 = Fear = cautious optimism
+  * 45-55 = Neutral
+  * 55-75 = Greed = caution advised
+  * 75-100 = Extreme Greed = historically good time to take profits
+
+- Long/Short Ratio:
+  * >2.5 = Very crowded long (73%+ long) = HIGH RISK of liquidation cascade
+  * 1.5-2.5 = Moderately long biased
+  * 0.8-1.5 = Balanced
+  * <0.7 = Crowded short = potential short squeeze
+
+- Funding Rate:
+  * >0.1% = Longs heavily overleveraged
+  * 0.01-0.1% = Slightly bullish
+  * -0.01 to 0.01% = Neutral
+  * <-0.03% = Shorts paying premium, bullish
 
 Guidelines:
 - Be concise and helpful
-- Reference specific data from the dashboard when available
+- When asked about market conditions, ALWAYS reference the sentiment data
+- Highlight when sentiment and technicals conflict
 - Never provide financial advice or guarantee outcomes
-- Suggest exploring specific assets based on signal strength
-- Use the indicator data to support your explanations`
+- Use specific numbers from the data`
         },
         {
           role: 'user',
           content: message
         }
       ],
-      max_tokens: 600,
+      max_tokens: 800,
       temperature: 0.7,
     });
 
@@ -115,4 +148,43 @@ Bullish signals: ${bullish} | Bearish signals: ${bearish}
 Top assets:
 ${summaries.join('\n')}
 `.trim();
+}
+
+function buildSentimentContext(sentiment: any): string {
+  if (!sentiment) return '';
+  
+  const parts: string[] = [];
+  
+  if (sentiment.fearGreed) {
+    const fg = sentiment.fearGreed;
+    parts.push(`Fear & Greed Index: ${fg.value}/100 (${fg.classification})`);
+    if (fg.value <= 25) {
+      parts.push(`  → EXTREME FEAR: Historically a good buying opportunity (contrarian)`);
+    } else if (fg.value >= 75) {
+      parts.push(`  → EXTREME GREED: Historically a good time to take profits (contrarian)`);
+    }
+  }
+  
+  if (sentiment.fundingRate) {
+    const fr = sentiment.fundingRate;
+    parts.push(`Funding Rate: ${fr.ratePercent >= 0 ? '+' : ''}${fr.ratePercent.toFixed(4)}%`);
+    parts.push(`  → ${fr.description}`);
+  }
+  
+  if (sentiment.longShortRatio) {
+    const ls = sentiment.longShortRatio;
+    parts.push(`Long/Short Ratio: ${ls.ratio.toFixed(2)} (${ls.longPercent.toFixed(1)}% Long / ${ls.shortPercent.toFixed(1)}% Short)`);
+    parts.push(`  → ${ls.description}`);
+    if (ls.ratio > 2.5) {
+      parts.push(`  ⚠️ WARNING: Very crowded long position - high liquidation risk`);
+    }
+  }
+  
+  if (sentiment.openInterest) {
+    parts.push(`Open Interest: $${(sentiment.openInterest.openInterestUSD / 1e9).toFixed(2)}B`);
+  }
+  
+  parts.push(`Overall Sentiment: ${sentiment.overallSignal.replace('_', ' ').toUpperCase()} (Score: ${sentiment.overallScore})`);
+  
+  return parts.join('\n');
 }

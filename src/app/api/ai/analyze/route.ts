@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { fetchMarketSentiment } from '@/lib/sentiment-api';
 
 // Lazy initialize OpenAI client
 function getOpenAIClient(): OpenAI | null {
@@ -29,52 +30,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch market sentiment for crypto assets
+    let sentimentData = null;
+    if (asset.type === 'crypto') {
+      try {
+        sentimentData = await fetchMarketSentiment('BTCUSDT');
+      } catch (e) {
+        console.error('Failed to fetch sentiment:', e);
+      }
+    }
+
     // Build prompt with market data context
-    const prompt = buildAnalysisPrompt(asset, indicators, signal, prices);
+    const prompt = buildAnalysisPrompt(asset, indicators, signal, prices, sentimentData);
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Cost-effective model for analysis
+      model: 'gpt-4o-mini',
       messages: [
         {
-  role: 'system',
-  content: `
-You are a professional technical market analyst.
+          role: 'system',
+          content: `You are a professional technical and sentiment market analyst.
 
-Your task is to analyze the provided market data and technical indicators and produce a concise, structured technical analysis.
+Your task is to analyze the provided market data, technical indicators, AND market sentiment data to produce a concise, actionable analysis.
 
 Rules:
 - Base your analysis strictly on the provided data
-- Do NOT speculate beyond the indicators
+- Consider BOTH technical indicators AND market sentiment
+- Market sentiment indicators are CONTRARIAN:
+  * Fear & Greed below 25 = Extreme Fear = potential buying opportunity
+  * Fear & Greed above 75 = Extreme Greed = potential selling opportunity
+  * High Long/Short ratio (>2.0) = crowded long = risk of liquidation cascade
+  * Low Long/Short ratio (<0.7) = crowded short = short squeeze potential
+  * Positive funding = longs pay shorts = slightly bullish bias
+  * Negative funding = shorts pay longs = slightly bearish bias
 - Do NOT provide financial advice or guarantees
-- This is technical analysis only
 
 Response format (use these exact section titles):
-1. Market Overview (1–2 sentences)
-2. Indicator Interpretation (key signals only)
-3. Key Levels (support / resistance if inferable)
-4. Technical Outlook (Bullish / Bearish / Neutral)
-5. Risk Notes (1 short sentence)
+1. Market Overview (2-3 sentences combining price action and sentiment)
+2. Technical Signals (key indicator interpretations)
+3. Sentiment Analysis (interpret Fear/Greed, Funding, L/S ratio)
+4. Conflicting Signals (if technical and sentiment disagree, explain)
+5. Outlook & Key Levels (Bullish/Bearish/Neutral + support/resistance)
+6. Risk Factors (1-2 sentences)
 
 Style guidelines:
-- Professional, neutral tone
-- Clear and direct language
-- No emojis
-- Under 180 words total
-`
-},
+- Professional but accessible tone
+- Be specific with numbers
+- Under 250 words total`
+        },
         {
           role: 'user',
           content: prompt
         }
       ],
       temperature: 0.3,
-max_tokens: 300,
-
+      max_tokens: 400,
     });
 
     const analysis = completion.choices[0]?.message?.content || 'Unable to generate analysis.';
 
-    return NextResponse.json({ analysis });
+    return NextResponse.json({ 
+      analysis,
+      sentiment: sentimentData ? {
+        fearGreed: sentimentData.fearGreed?.value,
+        fundingRate: sentimentData.fundingRate?.ratePercent,
+        longShortRatio: sentimentData.longShortRatio?.ratio,
+      } : null
+    });
   } catch (error) {
     console.error('Error generating AI analysis:', error);
     return NextResponse.json(
@@ -84,11 +105,35 @@ max_tokens: 300,
   }
 }
 
+interface SentimentData {
+  fearGreed?: {
+    value: number;
+    classification: string;
+    signal: string;
+  } | null;
+  fundingRate?: {
+    ratePercent: number;
+    description: string;
+  } | null;
+  longShortRatio?: {
+    ratio: number;
+    longPercent: number;
+    shortPercent: number;
+    description: string;
+  } | null;
+  openInterest?: {
+    openInterestUSD: number;
+  } | null;
+  overallSignal: string;
+  overallScore: number;
+}
+
 function buildAnalysisPrompt(
   asset: { symbol: string; name: string; price: number; changePercent24h: number; type: string },
   indicators: Array<{ name: string; value: number; signal: string; description: string }>,
   signal: { overall: string; score: number; bullishCount: number; bearishCount: number },
-  prices?: number[]
+  prices?: number[],
+  sentiment?: SentimentData | null
 ): string {
   const indicatorSummary = indicators
     .map(i => `- ${i.name}: ${i.value} (${i.signal}) - ${i.description}`)
@@ -97,6 +142,42 @@ function buildAnalysisPrompt(
   const priceContext = prices && prices.length > 0
     ? `Recent price range: $${Math.min(...prices).toFixed(2)} - $${Math.max(...prices).toFixed(2)}`
     : '';
+
+  // Build sentiment section
+  let sentimentSection = '';
+  if (sentiment) {
+    sentimentSection = `
+**Market Sentiment (Contrarian Indicators):**`;
+    
+    if (sentiment.fearGreed) {
+      sentimentSection += `
+- Fear & Greed Index: ${sentiment.fearGreed.value}/100 (${sentiment.fearGreed.classification})
+  * Below 25 = Extreme Fear (historically good to buy)
+  * Above 75 = Extreme Greed (historically good to sell)`;
+    }
+    
+    if (sentiment.fundingRate) {
+      sentimentSection += `
+- Funding Rate: ${sentiment.fundingRate.ratePercent >= 0 ? '+' : ''}${sentiment.fundingRate.ratePercent.toFixed(4)}%
+  * ${sentiment.fundingRate.description}`;
+    }
+    
+    if (sentiment.longShortRatio) {
+      sentimentSection += `
+- Long/Short Ratio: ${sentiment.longShortRatio.ratio.toFixed(2)} (${sentiment.longShortRatio.longPercent.toFixed(1)}% Long / ${sentiment.longShortRatio.shortPercent.toFixed(1)}% Short)
+  * ${sentiment.longShortRatio.description}
+  * Ratio >2.5 = very crowded long, high liquidation risk
+  * Ratio <0.7 = very crowded short, squeeze potential`;
+    }
+    
+    if (sentiment.openInterest) {
+      sentimentSection += `
+- Open Interest: $${(sentiment.openInterest.openInterestUSD / 1e9).toFixed(2)}B`;
+    }
+    
+    sentimentSection += `
+- Overall Sentiment Signal: ${sentiment.overallSignal.replace('_', ' ').toUpperCase()} (Score: ${sentiment.overallScore})`;
+  }
 
   return `
 Analyze the following ${asset.type === 'crypto' ? 'cryptocurrency' : 'stock'}:
@@ -109,12 +190,13 @@ ${priceContext}
 **Technical Indicators:**
 ${indicatorSummary}
 
-**Combined Signal:**
+**Combined Technical Signal:**
 - Overall: ${signal.overall.toUpperCase().replace('_', ' ')}
 - Score: ${signal.score}/100
 - Bullish indicators: ${signal.bullishCount}
 - Bearish indicators: ${signal.bearishCount}
+${sentimentSection}
 
-Please provide a brief technical analysis and outlook based on these indicators.
+Provide a comprehensive analysis combining technical indicators with market sentiment. Highlight any conflicting signals between technicals and sentiment.
 `.trim();
 }
