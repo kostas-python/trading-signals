@@ -83,7 +83,7 @@ export function formatAlertMessage(
   };
 
   let message = `${emoji[alertType]} <b>SignalPulse: ${actionText[alertType]}</b>\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `━━━━━━━━━━━━━━━\n\n`;
   
   message += `⚡ <b>Trigger:</b> ${data.triggerReason}\n\n`;
 
@@ -117,7 +117,7 @@ export function formatAlertMessage(
     message += `<i>${data.aiAnalysis.slice(0, 400)}${data.aiAnalysis.length > 400 ? '...' : ''}</i>\n`;
   }
 
-  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `\n━━━━━━━━━━━━━━━\n`;
   message += `🕐 ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC\n`;
   message += `<i>⚠️ Not financial advice. DYOR.</i>`;
 
