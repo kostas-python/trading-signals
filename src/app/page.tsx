@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Star, LayoutGrid, TrendingUp, Key, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Star, LayoutGrid, TrendingUp, Key, AlertTriangle, Bell, X } from 'lucide-react';
 import { Asset, AssetType, CombinedSignal } from '@/types';
 import { fetchCryptoMarkets, fetchStockData, fetchCryptoDetails, fetchStockDetails, hasFinnhubApiKey } from '@/lib/api';
 import { useIndicators } from '@/hooks/useIndicators';
@@ -18,6 +18,7 @@ import {
   AIChatPanel,
 } from '@/components';
 import { SentimentPanel } from '@/components/SentimentPanel';
+import { AlertSettings } from '@/components/AlertSettings';
 
 type ViewMode = 'all' | 'watchlist';
 
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [isIndicatorPanelOpen, setIsIndicatorPanelOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showApiWarning, setShowApiWarning] = useState(false);
 
@@ -202,7 +204,7 @@ export default function Dashboard() {
             <SearchBar marketType={marketType} onSelectAsset={handleSearchSelect} />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex rounded-lg border border-terminal-border bg-terminal-surface p-1">
               <ViewButton
                 active={viewMode === 'all'}
@@ -217,6 +219,19 @@ export default function Dashboard() {
                 label="Watchlist"
               />
             </div>
+
+            {/* Alert Settings Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsAlertPanelOpen(true)}
+              className="relative flex items-center justify-center rounded-lg border border-terminal-border bg-terminal-surface p-2 text-terminal-muted hover:border-accent-cyan hover:text-accent-cyan"
+              title="Telegram Alerts"
+            >
+              <Bell className="h-4 w-4" />
+              {/* Notification dot - can be dynamic based on alert status */}
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-accent-cyan animate-pulse" />
+            </motion.button>
 
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -344,6 +359,84 @@ export default function Dashboard() {
           fetchData(true);
         }}
       />
+
+      {/* Alert Settings Slide-out Panel */}
+      <AnimatePresence>
+        {isAlertPanelOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAlertPanelOpen(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            />
+            
+            {/* Slide-out Panel */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 z-50 h-full w-full max-w-md overflow-y-auto bg-terminal-bg border-l border-terminal-border shadow-2xl"
+            >
+              {/* Panel Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-terminal-border bg-terminal-bg/95 backdrop-blur-sm px-4 py-4 sm:px-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-accent-cyan/20 p-2">
+                    <Bell className="h-5 w-5 text-accent-cyan" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Alert Settings</h2>
+                    <p className="text-xs text-terminal-muted">Configure Telegram notifications</p>
+                  </div>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsAlertPanelOpen(false)}
+                  className="rounded-lg p-2 text-terminal-muted hover:bg-terminal-surface hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </motion.button>
+              </div>
+              
+              {/* Panel Content */}
+              <div className="p-4 sm:p-6">
+                <AlertSettings />
+                
+                {/* Help Section */}
+                <div className="mt-6 rounded-xl border border-terminal-border bg-terminal-surface/30 p-4">
+                  <h3 className="text-sm font-medium text-white mb-2">📱 How it works</h3>
+                  <ul className="space-y-2 text-xs text-terminal-muted">
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-cyan">1.</span>
+                      Create a Telegram bot via @BotFather
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-cyan">2.</span>
+                      Get your Chat ID and configure it above
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-cyan">3.</span>
+                      Receive alerts when market conditions match your thresholds
+                    </li>
+                  </ul>
+                  <a 
+                    href="https://core.telegram.org/bots#how-do-i-create-a-bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-xs text-accent-cyan hover:underline"
+                  >
+                    Learn how to create a Telegram bot →
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <AIChatPanel assets={assets} signals={signals} />
     </div>
