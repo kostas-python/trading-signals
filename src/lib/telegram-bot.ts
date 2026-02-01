@@ -226,7 +226,7 @@ export function checkAlertConditions(
 export async function verifyTelegramConfig(
   botToken: string,
   chatId: string
-): Promise<{ valid: boolean; error?: string }> {
+): Promise<{ valid: boolean; error?: string; botName?: string }> {
   try {
     // Test by getting bot info
     const botResponse = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
@@ -236,13 +236,16 @@ export async function verifyTelegramConfig(
       return { valid: false, error: 'Invalid bot token' };
     }
 
-    // Test by sending a simple message
+    const botName = botData.result?.username;
+
+    // Test by sending a verification message
     const testResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: '✅ SignalPulse bot connected successfully!',
+        text: '✅ SignalPulse bot connected successfully!\n\nYou will now receive market alerts when conditions meet your thresholds.',
+        parse_mode: 'HTML',
       }),
     });
     
@@ -252,8 +255,104 @@ export async function verifyTelegramConfig(
       return { valid: false, error: `Chat ID error: ${testData.description}` };
     }
 
-    return { valid: true };
+    return { valid: true, botName };
   } catch (error) {
-    return { valid: false, error: 'Network error - could not reach Telegram' };
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return { valid: false, error: `Network error: ${errorMsg}` };
   }
+}
+
+// Get bot info
+export async function getBotInfo(): Promise<{ 
+  ok: boolean; 
+  username?: string; 
+  firstName?: string;
+  error?: string;
+}> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  
+  if (!botToken) {
+    return { ok: false, error: 'TELEGRAM_BOT_TOKEN not configured' };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const data = await response.json();
+    
+    if (!data.ok) {
+      return { ok: false, error: data.description };
+    }
+
+    return {
+      ok: true,
+      username: data.result?.username,
+      firstName: data.result?.first_name,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return { ok: false, error: errorMsg };
+  }
+}
+
+// Send photo/image via Telegram
+export async function sendTelegramPhoto({
+  chatId,
+  photoUrl,
+  caption,
+}: {
+  chatId: string;
+  photoUrl: string;
+  caption?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  
+  if (!botToken) {
+    return { success: false, error: 'TELEGRAM_BOT_TOKEN not configured' };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: photoUrl,
+        caption,
+        parse_mode: 'HTML',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      return { success: false, error: data.description };
+    }
+
+    return { success: true };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: errorMsg };
+  }
+}
+
+// Format a quick status update message
+export function formatQuickStatus(data: {
+  fearGreed: number;
+  fundingRate: number;
+  longShortRatio: number;
+  btcPrice: number;
+  change24h: number;
+}): string {
+  const fgEmoji = data.fearGreed <= 25 ? '🟢' : data.fearGreed >= 75 ? '🔴' : '🟡';
+  const priceEmoji = data.change24h >= 0 ? '📈' : '📉';
+  
+  return `📊 <b>Market Status</b>
+
+💰 BTC: $${data.btcPrice.toLocaleString()} ${priceEmoji} ${data.change24h >= 0 ? '+' : ''}${data.change24h.toFixed(2)}%
+
+${fgEmoji} Fear & Greed: ${data.fearGreed}
+⚖️ Funding: ${data.fundingRate >= 0 ? '+' : ''}${data.fundingRate.toFixed(4)}%
+📊 L/S Ratio: ${data.longShortRatio.toFixed(2)}
+
+🕐 ${new Date().toLocaleTimeString('en-US', { timeZone: 'UTC' })} UTC`;
 }

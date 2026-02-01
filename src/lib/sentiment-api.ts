@@ -1,264 +1,335 @@
-// Free Sentiment & Market Data APIs
-
-// ============== FEAR & GREED INDEX ==============
-// https://alternative.me/crypto/fear-and-greed-index/
-
-interface FearGreedResponse {
-  data: Array<{
-    value: string;
-    value_classification: string;
-    timestamp: string;
-  }>;
-}
+// Sentiment API - Free APIs for market sentiment data
 
 export interface FearGreedData {
   value: number;
   classification: string;
-  timestamp: Date;
-  signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
+  timestamp: number;
+  signal: string;
+  description: string;
 }
 
+export interface FundingRateData {
+  symbol: string;
+  fundingRate: number;
+  fundingTime: number;
+  ratePercent: number;
+  annualizedRate: number;
+  signal: string;
+  description: string;
+}
+
+export interface LongShortData {
+  symbol: string;
+  longAccount: number;
+  shortAccount: number;
+  ratio: number;
+  longPercent: number;
+  shortPercent: number;
+  signal: string;
+  description: string;
+}
+
+export interface OpenInterestData {
+  symbol: string;
+  openInterest: number;
+  openInterestUSD: number;
+}
+
+export interface NewsItem {
+  title: string;
+  source: string;
+  url: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  publishedAt: string;
+}
+
+export interface SocialData {
+  twitterFollowers: number;
+  redditSubscribers: number;
+  sentimentScore: number;
+}
+
+export interface PriceData {
+  current: number;
+  change24h: number;
+  high24h: number;
+  low24h: number;
+}
+
+export interface MarketSentiment {
+  fearGreed: FearGreedData | null;
+  fundingRate: FundingRateData | null;
+  longShortRatio: LongShortData | null;
+  openInterest: OpenInterestData | null;
+  news: NewsItem[] | null;
+  social: SocialData | null;
+  price: PriceData | null;
+  overallSignal: string;
+  overallScore: number;
+}
+
+// Fetch Fear & Greed Index (Alternative.me - FREE)
 export async function fetchFearGreedIndex(): Promise<FearGreedData | null> {
   try {
     const response = await fetch('https://api.alternative.me/fng/?limit=1');
     if (!response.ok) return null;
     
-    const data: FearGreedResponse = await response.json();
-    const latest = data.data[0];
-    const value = parseInt(latest.value);
+    const data = await response.json();
+    const fng = data.data[0];
+    const value = parseInt(fng.value, 10);
     
-    // Contrarian signals: extreme fear = buy, extreme greed = sell
-    let signal: FearGreedData['signal'] = 'neutral';
-    if (value <= 20) signal = 'strong_buy';      // Extreme Fear
-    else if (value <= 35) signal = 'buy';         // Fear
-    else if (value >= 80) signal = 'strong_sell'; // Extreme Greed
-    else if (value >= 65) signal = 'sell';        // Greed
+    let signal = 'neutral';
+    let description = 'Market sentiment is neutral';
+    
+    if (value <= 20) {
+      signal = 'strong_buy';
+      description = 'Extreme fear - historically a good buying opportunity';
+    } else if (value <= 40) {
+      signal = 'buy';
+      description = 'Fear in the market - potential buying opportunity';
+    } else if (value >= 80) {
+      signal = 'strong_sell';
+      description = 'Extreme greed - consider taking profits';
+    } else if (value >= 60) {
+      signal = 'sell';
+      description = 'Greed in the market - be cautious';
+    }
     
     return {
       value,
-      classification: latest.value_classification,
-      timestamp: new Date(parseInt(latest.timestamp) * 1000),
+      classification: fng.value_classification,
+      timestamp: parseInt(fng.timestamp, 10) * 1000,
       signal,
+      description,
     };
   } catch (error) {
-    console.error('Error fetching Fear & Greed:', error);
+    console.error('Failed to fetch Fear & Greed Index:', error);
     return null;
   }
 }
 
-// ============== BINANCE FUNDING RATES ==============
-// Positive = longs pay shorts (bullish sentiment)
-// Negative = shorts pay longs (bearish sentiment)
-
-interface BinanceFundingRate {
-  symbol: string;
-  fundingRate: string;
-  fundingTime: number;
-}
-
-export interface FundingRateData {
-  symbol: string;
-  rate: number;
-  ratePercent: number;
-  signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
-  description: string;
-}
-
-export async function fetchBinanceFundingRate(symbol: string = 'BTCUSDT'): Promise<FundingRateData | null> {
+// Fetch Funding Rate (Binance Futures - FREE)
+export async function fetchFundingRate(symbol: string = 'BTCUSDT'): Promise<FundingRateData | null> {
   try {
     const response = await fetch(
       `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`
     );
     if (!response.ok) return null;
     
-    const data: BinanceFundingRate[] = await response.json();
-    if (!data.length) return null;
+    const data = await response.json();
+    if (!data || data.length === 0) return null;
     
-    const rate = parseFloat(data[0].fundingRate);
+    const funding = data[0];
+    const rate = parseFloat(funding.fundingRate);
     const ratePercent = rate * 100;
+    const annualizedRate = ratePercent * 3 * 365; // 3 times per day * 365 days
     
-    // Contrarian: high positive = overleveraged longs = potential drop
-    // High negative = overleveraged shorts = potential squeeze
-    let signal: FundingRateData['signal'] = 'neutral';
-    let description = 'Neutral funding rate';
+    let signal = 'neutral';
+    let description = 'Funding rate is neutral - balanced market';
     
-    if (ratePercent > 0.1) {
+    if (ratePercent >= 0.1) {
       signal = 'sell';
-      description = 'High positive funding - longs overleveraged';
-    } else if (ratePercent > 0.05) {
-      signal = 'neutral';
-      description = 'Slightly bullish sentiment';
-    } else if (ratePercent < -0.1) {
+      description = 'High funding - longs are overleveraged';
+    } else if (ratePercent >= 0.05) {
+      signal = 'caution';
+      description = 'Elevated funding - slight long bias';
+    } else if (ratePercent <= -0.05) {
       signal = 'buy';
-      description = 'High negative funding - potential short squeeze';
-    } else if (ratePercent < -0.05) {
-      signal = 'neutral';
-      description = 'Slightly bearish sentiment';
+      description = 'Negative funding - shorts are paying, bullish';
+    } else if (ratePercent <= -0.03) {
+      signal = 'strong_buy';
+      description = 'Very negative funding - potential short squeeze';
     }
-    
-    return { symbol, rate, ratePercent, signal, description };
-  } catch (error) {
-    console.error('Error fetching funding rate:', error);
-    return null;
-  }
-}
-
-// ============== BINANCE LONG/SHORT RATIO ==============
-
-interface LongShortRatio {
-  symbol: string;
-  longShortRatio: string;
-  longAccount: string;
-  shortAccount: string;
-  timestamp: number;
-}
-
-export interface LongShortData {
-  symbol: string;
-  ratio: number;
-  longPercent: number;
-  shortPercent: number;
-  signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
-  description: string;
-}
-
-export async function fetchLongShortRatio(symbol: string = 'BTCUSDT'): Promise<LongShortData | null> {
-  try {
-    const response = await fetch(
-      `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=1h&limit=1`
-    );
-    if (!response.ok) return null;
-    
-    const data: LongShortRatio[] = await response.json();
-    if (!data.length) return null;
-    
-    const ratio = parseFloat(data[0].longShortRatio);
-    const longPercent = parseFloat(data[0].longAccount) * 100;
-    const shortPercent = parseFloat(data[0].shortAccount) * 100;
-    
-    // Contrarian: too many longs = potential drop, too many shorts = potential squeeze
-    let signal: LongShortData['signal'] = 'neutral';
-    let description = 'Balanced long/short ratio';
-    
-    if (ratio > 2.5) {
-      signal = 'sell';
-      description = 'Extremely long-heavy - potential reversal down';
-    } else if (ratio > 1.8) {
-      signal = 'neutral';
-      description = 'More longs than shorts';
-    } else if (ratio < 0.6) {
-      signal = 'buy';
-      description = 'Extremely short-heavy - potential squeeze';
-    } else if (ratio < 0.8) {
-      signal = 'neutral';
-      description = 'More shorts than longs';
-    }
-    
-    return { symbol, ratio, longPercent, shortPercent, signal, description };
-  } catch (error) {
-    console.error('Error fetching long/short ratio:', error);
-    return null;
-  }
-}
-
-// ============== BINANCE OPEN INTEREST ==============
-
-interface OpenInterest {
-  symbol: string;
-  openInterest: string;
-  time: number;
-}
-
-export interface OpenInterestData {
-  symbol: string;
-  openInterest: number;
-  change24h: number;
-  signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
-  description: string;
-}
-
-export async function fetchOpenInterest(symbol: string = 'BTCUSDT'): Promise<OpenInterestData | null> {
-  try {
-    // Get current OI
-    const response = await fetch(
-      `https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`
-    );
-    if (!response.ok) return null;
-    
-    const data: OpenInterest = await response.json();
-    const currentOI = parseFloat(data.openInterest);
-    
-    // Get historical for comparison (would need more calls for proper 24h change)
-    // Simplified: just return current value
     
     return {
       symbol,
-      openInterest: currentOI,
-      change24h: 0, // Would need historical data
-      signal: 'neutral',
-      description: `Open Interest: ${(currentOI / 1000).toFixed(2)}K contracts`,
+      fundingRate: rate,
+      fundingTime: parseInt(funding.fundingTime, 10),
+      ratePercent,
+      annualizedRate,
+      signal,
+      description,
     };
   } catch (error) {
-    console.error('Error fetching open interest:', error);
+    console.error('Failed to fetch funding rate:', error);
     return null;
   }
 }
 
-// ============== COMBINED MARKET SENTIMENT ==============
-
-export interface MarketSentiment {
-  fearGreed: FearGreedData | null;
-  fundingRate: FundingRateData | null;
-  longShortRatio: LongShortData | null;
-  overallSignal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
-  overallScore: number; // -100 to 100
+// Fetch Long/Short Ratio (Binance Futures - FREE)
+export async function fetchLongShortRatio(symbol: string = 'BTCUSDT'): Promise<LongShortData | null> {
+  try {
+    const response = await fetch(
+      `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=5m&limit=1`
+    );
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (!data || data.length === 0) return null;
+    
+    const ls = data[0];
+    const ratio = parseFloat(ls.longShortRatio);
+    const longPercent = (ratio / (1 + ratio)) * 100;
+    const shortPercent = 100 - longPercent;
+    
+    let signal = 'neutral';
+    let description = 'Long/Short ratio is balanced';
+    
+    if (ratio >= 3.0) {
+      signal = 'strong_sell';
+      description = `Extremely crowded long (${longPercent.toFixed(1)}%) - High liquidation risk`;
+    } else if (ratio >= 2.5) {
+      signal = 'sell';
+      description = `Very crowded long (${longPercent.toFixed(1)}%) - Caution advised`;
+    } else if (ratio >= 2.0) {
+      signal = 'caution';
+      description = `Crowded long (${longPercent.toFixed(1)}%) - Monitor closely`;
+    } else if (ratio <= 0.5) {
+      signal = 'strong_buy';
+      description = `Crowded short (${shortPercent.toFixed(1)}%) - Squeeze potential`;
+    } else if (ratio <= 0.7) {
+      signal = 'buy';
+      description = `Short bias (${shortPercent.toFixed(1)}%) - Potential reversal`;
+    }
+    
+    return {
+      symbol,
+      longAccount: parseFloat(ls.longAccount),
+      shortAccount: parseFloat(ls.shortAccount),
+      ratio,
+      longPercent,
+      shortPercent,
+      signal,
+      description,
+    };
+  } catch (error) {
+    console.error('Failed to fetch long/short ratio:', error);
+    return null;
+  }
 }
 
+// Fetch Open Interest (Binance Futures - FREE)
+export async function fetchOpenInterest(symbol: string = 'BTCUSDT'): Promise<OpenInterestData | null> {
+  try {
+    const [oiResponse, priceResponse] = await Promise.all([
+      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`),
+      fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`),
+    ]);
+    
+    if (!oiResponse.ok || !priceResponse.ok) return null;
+    
+    const oiData = await oiResponse.json();
+    const priceData = await priceResponse.json();
+    
+    const openInterest = parseFloat(oiData.openInterest);
+    const price = parseFloat(priceData.price);
+    
+    return {
+      symbol,
+      openInterest,
+      openInterestUSD: openInterest * price,
+    };
+  } catch (error) {
+    console.error('Failed to fetch open interest:', error);
+    return null;
+  }
+}
+
+// Fetch BTC Price (Binance - FREE)
+export async function fetchPrice(symbol: string = 'BTCUSDT'): Promise<PriceData | null> {
+  try {
+    const response = await fetch(
+      `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`
+    );
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    
+    return {
+      current: parseFloat(data.lastPrice),
+      change24h: parseFloat(data.priceChangePercent),
+      high24h: parseFloat(data.highPrice),
+      low24h: parseFloat(data.lowPrice),
+    };
+  } catch (error) {
+    console.error('Failed to fetch price:', error);
+    return null;
+  }
+}
+
+// Calculate overall sentiment signal
+function calculateOverallSignal(
+  fearGreed: FearGreedData | null,
+  fundingRate: FundingRateData | null,
+  longShortRatio: LongShortData | null
+): { signal: string; score: number } {
+  let score = 0;
+  let factors = 0;
+  
+  // Fear & Greed (weight: 40%)
+  if (fearGreed) {
+    factors++;
+    if (fearGreed.value <= 20) score += 40;
+    else if (fearGreed.value <= 35) score += 20;
+    else if (fearGreed.value >= 80) score -= 40;
+    else if (fearGreed.value >= 65) score -= 20;
+  }
+  
+  // Funding Rate (weight: 30%)
+  if (fundingRate) {
+    factors++;
+    if (fundingRate.ratePercent <= -0.05) score += 30;
+    else if (fundingRate.ratePercent <= -0.02) score += 15;
+    else if (fundingRate.ratePercent >= 0.1) score -= 30;
+    else if (fundingRate.ratePercent >= 0.05) score -= 15;
+  }
+  
+  // Long/Short Ratio (weight: 30%)
+  if (longShortRatio) {
+    factors++;
+    if (longShortRatio.ratio <= 0.5) score += 30;
+    else if (longShortRatio.ratio <= 0.8) score += 15;
+    else if (longShortRatio.ratio >= 3.0) score -= 30;
+    else if (longShortRatio.ratio >= 2.5) score -= 15;
+  }
+  
+  // Normalize score
+  const normalizedScore = factors > 0 ? Math.round(score / factors * factors) : 0;
+  
+  let signal = 'neutral';
+  if (normalizedScore >= 50) signal = 'strong_buy';
+  else if (normalizedScore >= 25) signal = 'buy';
+  else if (normalizedScore <= -50) signal = 'strong_sell';
+  else if (normalizedScore <= -25) signal = 'sell';
+  
+  return { signal, score: normalizedScore };
+}
+
+// Main function to fetch all market sentiment data
 export async function fetchMarketSentiment(symbol: string = 'BTCUSDT'): Promise<MarketSentiment> {
-  const [fearGreed, fundingRate, longShortRatio] = await Promise.all([
+  const [fearGreed, fundingRate, longShortRatio, openInterest, price] = await Promise.all([
     fetchFearGreedIndex(),
-    fetchBinanceFundingRate(symbol),
+    fetchFundingRate(symbol),
     fetchLongShortRatio(symbol),
+    fetchOpenInterest(symbol),
+    fetchPrice(symbol),
   ]);
   
-  // Calculate overall score
-  const signalToScore = {
-    strong_buy: 2,
-    buy: 1,
-    neutral: 0,
-    sell: -1,
-    strong_sell: -2,
-  };
-  
-  let totalScore = 0;
-  let count = 0;
-  
-  if (fearGreed) {
-    totalScore += signalToScore[fearGreed.signal];
-    count++;
-  }
-  if (fundingRate) {
-    totalScore += signalToScore[fundingRate.signal];
-    count++;
-  }
-  if (longShortRatio) {
-    totalScore += signalToScore[longShortRatio.signal];
-    count++;
-  }
-  
-  const avgScore = count > 0 ? (totalScore / count) * 50 : 0; // Normalize to -100 to 100
-  
-  let overallSignal: MarketSentiment['overallSignal'] = 'neutral';
-  if (avgScore >= 50) overallSignal = 'strong_buy';
-  else if (avgScore >= 20) overallSignal = 'buy';
-  else if (avgScore <= -50) overallSignal = 'strong_sell';
-  else if (avgScore <= -20) overallSignal = 'sell';
+  const { signal: overallSignal, score: overallScore } = calculateOverallSignal(
+    fearGreed,
+    fundingRate,
+    longShortRatio
+  );
   
   return {
     fearGreed,
     fundingRate,
     longShortRatio,
+    openInterest,
+    news: null, // Can be added later
+    social: null, // Can be added later
+    price,
     overallSignal,
-    overallScore: Math.round(avgScore),
+    overallScore,
   };
 }

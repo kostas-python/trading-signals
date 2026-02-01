@@ -1,6 +1,7 @@
 // Supabase client for SignalPulse Alerts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+
 // Types for our tables
 export interface AlertConfig {
   id: string;
@@ -367,3 +368,4 @@ export async function getAlertStats(userId: string = 'default'): Promise<{
     last7d: allAlerts.filter(a => new Date(a.created_at) >= lastWeek).length,
   };
 }
+
