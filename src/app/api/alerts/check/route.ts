@@ -105,105 +105,124 @@ export async function GET(request: NextRequest) {
     }
 
     // Generate AI analysis if enabled
-    let aiAnalysis: string | undefined;
-    if (config.ai_analysis_enabled) {
-      try {
-        const modelConfig = AI_MODELS[config.ai_model] || AI_MODELS['llama-3.3-70b'];
-        
-        const result = await createCompletion({
-          model: modelConfig.id,
-          messages: [
-            {
-              role: 'system',
-              content: `You are a crypto market analyst providing brief, actionable insights. 
-Be direct and specific. Maximum 2-3 sentences.
-Focus on what traders should DO based on the data.`,
-            },
-            {
-              role: 'user',
-              content: `Alert triggered: ${alertCheck.reason}
+    // Generate AI analysis if enabled
+let aiAnalysis: string | undefined;
+if (config.ai_analysis_enabled) {
+  try {
+    const modelConfig = AI_MODELS[config.ai_model] || AI_MODELS['llama-3.3-70b'];
+    
+    console.log('Generating AI analysis with model:', modelConfig.id);
+    
+    const result = await createCompletion({
+      model: modelConfig.id,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a senior crypto trading analyst. Provide detailed, actionable analysis.
 
-Current Market Data:
-- Fear & Greed Index: ${sentiment.fearGreed?.value ?? 'N/A'} (${sentiment.fearGreed?.classification ?? 'N/A'})
+Include:
+- Market context and what indicators mean together
+- Risk assessment (liquidation risks, volatility)
+- Specific action plan (entry, position size, DCA levels)
+- Key price levels to watch
+- Timeframe for the opportunity
+
+Be direct and confident. Keep under 250 words.`,
+        },
+        {
+          role: 'user',
+          content: `ALERT: ${alertCheck.reason}
+
+Current Data:
+- Fear & Greed: ${sentiment.fearGreed?.value ?? 'N/A'} (${sentiment.fearGreed?.classification ?? 'N/A'})
 - Funding Rate: ${sentiment.fundingRate?.ratePercent?.toFixed(4) ?? 'N/A'}%
 - Long/Short Ratio: ${sentiment.longShortRatio?.ratio?.toFixed(2) ?? 'N/A'} (${sentiment.longShortRatio?.longPercent?.toFixed(1) ?? 'N/A'}% Long)
 - BTC Price: $${sentiment.price?.current?.toLocaleString() ?? 'N/A'}
 - 24h Change: ${sentiment.price?.change24h?.toFixed(2) ?? 'N/A'}%
 
-What's the recommended action?`,
-            },
-          ],
-          temperature: 0.3,
-          maxTokens: 150,
-        });
-        
-        aiAnalysis = result.content;
-        console.log('AI Analysis generated:', aiAnalysis);
-      } catch (e) {
-        console.error('AI analysis failed:', e);
-      }
-    }
-
-    // Format the alert message
-    const message = formatAlertMessage(alertCheck.alertType, {
-      triggerReason: alertCheck.reason,
-      fearGreed: sentiment.fearGreed ? {
-        value: sentiment.fearGreed.value,
-        classification: sentiment.fearGreed.classification,
-      } : undefined,
-      fundingRate: sentiment.fundingRate?.ratePercent,
-      longShortRatio: sentiment.longShortRatio ? {
-        ratio: sentiment.longShortRatio.ratio,
-        longPercent: sentiment.longShortRatio.longPercent,
-      } : undefined,
-      price: sentiment.price ? {
-        current: sentiment.price.current,
-        change24h: sentiment.price.change24h,
-      } : undefined,
-      aiAnalysis,
+Provide comprehensive trading analysis with specific recommendations.`,
+        },
+      ],
+      temperature: 0.4,
+      maxTokens: 500,
     });
-
-    // Send the Telegram message
-    console.log('Sending Telegram alert...');
-    const result = await sendTelegramMessage({
-      chatId,
-      text: message,
-      parseMode: 'HTML',
-    });
-
-    // Save alert to history
-    await addAlertToHistory({
-      user_id: 'default',
-      alert_type: alertCheck.alertType,
-      trigger_reason: alertCheck.reason,
-      fear_greed_value: sentiment.fearGreed?.value ?? null,
-      funding_rate: sentiment.fundingRate?.ratePercent ?? null,
-      long_short_ratio: sentiment.longShortRatio?.ratio ?? null,
-      btc_price: sentiment.price?.current ?? null,
-      btc_change_24h: sentiment.price?.change24h ?? null,
-      ai_analysis: aiAnalysis ?? null,
-      ai_model_used: config.ai_analysis_enabled ? config.ai_model : null,
-      telegram_sent: result.success,
-      telegram_message_id: result.messageId ?? null,
-      telegram_error: result.error ?? null,
-    });
-
-    return NextResponse.json({
-      success: result.success,
-      alertType: alertCheck.alertType,
-      reason: alertCheck.reason,
-      messageId: result.messageId,
-      error: result.error,
-    });
-
-  } catch (error) {
-    console.error('Alert check error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to check alerts' },
-      { status: 500 }
-    );
+    
+    aiAnalysis = result.content;
+    console.log('AI Analysis generated successfully:', aiAnalysis?.substring(0, 100) + '...');
+    
+  } catch (e) {
+    console.error('AI analysis failed:', e);
+    // Provide fallback analysis if AI fails
+    aiAnalysis = `⚠️ AI analysis unavailable. Key observations:
+- ${alertCheck.reason}
+- Fear & Greed at ${sentiment.fearGreed?.value ?? 'N/A'} suggests ${(sentiment.fearGreed?.value ?? 50) < 25 ? 'potential buying opportunity' : 'caution advised'}
+- Monitor funding rate and L/S ratio for confirmation`;
   }
 }
+
+// Log what we're sending
+console.log('AI Analysis to include:', aiAnalysis ? 'Yes' : 'No');
+
+          // Format the alert message
+          const message = formatAlertMessage(alertCheck.alertType, {
+            triggerReason: alertCheck.reason,
+            fearGreed: sentiment.fearGreed ? {
+              value: sentiment.fearGreed.value,
+              classification: sentiment.fearGreed.classification,
+            } : undefined,
+            fundingRate: sentiment.fundingRate?.ratePercent,
+            longShortRatio: sentiment.longShortRatio ? {
+              ratio: sentiment.longShortRatio.ratio,
+              longPercent: sentiment.longShortRatio.longPercent,
+            } : undefined,
+            price: sentiment.price ? {
+              current: sentiment.price.current,
+              change24h: sentiment.price.change24h,
+            } : undefined,
+            aiAnalysis,
+          });
+
+          // Send the Telegram message
+          console.log('Sending Telegram alert...');
+          const result = await sendTelegramMessage({
+            chatId,
+            text: message,
+            parseMode: 'HTML',
+          });
+
+          // Save alert to history
+          await addAlertToHistory({
+            user_id: 'default',
+            alert_type: alertCheck.alertType,
+            trigger_reason: alertCheck.reason,
+            fear_greed_value: sentiment.fearGreed?.value ?? null,
+            funding_rate: sentiment.fundingRate?.ratePercent ?? null,
+            long_short_ratio: sentiment.longShortRatio?.ratio ?? null,
+            btc_price: sentiment.price?.current ?? null,
+            btc_change_24h: sentiment.price?.change24h ?? null,
+            ai_analysis: aiAnalysis ?? null,
+            ai_model_used: config.ai_analysis_enabled ? config.ai_model : null,
+            telegram_sent: result.success,
+            telegram_message_id: result.messageId ?? null,
+            telegram_error: result.error ?? null,
+          });
+
+          return NextResponse.json({
+            success: result.success,
+            alertType: alertCheck.alertType,
+            reason: alertCheck.reason,
+            messageId: result.messageId,
+            error: result.error,
+          });
+
+        } catch (error) {
+          console.error('Alert check error:', error);
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to check alerts' },
+            { status: 500 }
+          );
+        }
+      }
 
 // Allow manual trigger via POST (for testing)
 export async function POST(request: NextRequest) {

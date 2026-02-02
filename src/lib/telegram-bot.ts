@@ -83,7 +83,7 @@ export function formatAlertMessage(
   };
 
   let message = `${emoji[alertType]} <b>SignalPulse: ${actionText[alertType]}</b>\n`;
-  message += `━━━━━━━━━━━━━━━\n\n`;
+  message += `━━━━━━━━━━━━━━\n\n`;
   
   message += `⚡ <b>Trigger:</b> ${data.triggerReason}\n\n`;
 
@@ -102,8 +102,24 @@ export function formatAlertMessage(
   }
   
   if (data.fundingRate !== undefined) {
-    const frEmoji = data.fundingRate > 0.05 ? '⚠️' : data.fundingRate < -0.03 ? '✅' : '➖';
-    message += `├ Funding Rate: ${frEmoji} ${data.fundingRate >= 0 ? '+' : ''}${data.fundingRate.toFixed(4)}%\n`;
+    let frEmoji = '➖';
+    let frNote = '';
+    
+    if (data.fundingRate <= -0.05) {
+      frEmoji = '🟢';
+      frNote = ' (Shorts Paying - Bullish!)';
+    } else if (data.fundingRate <= -0.01) {
+      frEmoji = '✅';
+      frNote = ' (Slight Short Bias)';
+    } else if (data.fundingRate >= 0.1) {
+      frEmoji = '🔴';
+      frNote = ' (Danger - Overleveraged!)';
+    } else if (data.fundingRate >= 0.05) {
+      frEmoji = '⚠️';
+      frNote = ' (Longs Paying)';
+    }
+    
+    message += `├ Funding Rate: ${frEmoji} ${data.fundingRate >= 0 ? '+' : ''}${data.fundingRate.toFixed(4)}%${frNote}\n`;
   }
   
   if (data.longShortRatio) {
@@ -112,12 +128,16 @@ export function formatAlertMessage(
     message += `└ Long/Short: ${lsEmoji} <b>${data.longShortRatio.ratio.toFixed(2)}</b> (${data.longShortRatio.longPercent.toFixed(1)}% Long)${lsWarning}\n`;
   }
 
-  if (data.aiAnalysis) {
-    message += `\n🤖 <b>AI Analysis:</b>\n`;
-    message += `<i>${data.aiAnalysis.slice(0, 400)}${data.aiAnalysis.length > 400 ? '...' : ''}</i>\n`;
+  // AI Analysis section - IMPORTANT: Make sure this is included
+  if (data.aiAnalysis && data.aiAnalysis.trim().length > 0) {
+    message += `\n━━━━━━━━━━━━\n`;
+    message += `🤖 <b>AI Analysis:</b>\n\n`;
+    // Limit to 800 chars to avoid Telegram message limits (4096 chars total)
+    const analysis = data.aiAnalysis.trim();
+    message += `${analysis.length > 800 ? analysis.substring(0, 800) + '...' : analysis}\n`;
   }
 
-  message += `\n━━━━━━━━━━━━━━━\n`;
+  message += `\n━━━━━━━━━━━━━\n`;
   message += `🕐 ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC\n`;
   message += `<i>⚠️ Not financial advice. DYOR.</i>`;
 
