@@ -48,12 +48,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed left-1/3 top-1/4 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-terminal-border bg-terminal-bg p-6"
+            exit={{ opacity: 0, scale: 0.96 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="w-full max-w-lg rounded-2xl border border-terminal-border bg-terminal-bg shadow-2xl
+                  max-h-[90vh] overflow-y-auto">
+
+            <div className="flex items-start sm:items-center justify-between mb-5 gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-cyan/20">
                   <Settings className="h-5 w-5 text-accent-cyan" />
@@ -123,6 +126,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key_here`}
               </pre>
             </div>
+            </div>
           </motion.div>
         </>
       )}
@@ -143,7 +147,7 @@ interface ApiStatusCardProps {
 function ApiStatusCard({ name, description, configured, isLoading, docsUrl, envVar, note }: ApiStatusCardProps) {
   return (
     <div className="rounded-xl border border-terminal-border bg-terminal-surface/50 p-4">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
             configured ? 'bg-signal-buy/20' : 'bg-signal-sell/20'
@@ -175,7 +179,7 @@ function ApiStatusCard({ name, description, configured, isLoading, docsUrl, envV
         <p className="mt-2 text-xs text-terminal-muted italic">{note}</p>
       )}
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <a
           href={docsUrl}
           target="_blank"
