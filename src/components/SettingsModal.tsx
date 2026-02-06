@@ -58,7 +58,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             <div className="flex items-start sm:items-center justify-between mb-5 gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-cyan/20">
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-terminal-border rounded-lg  backdrop-blur-sm px-4 py-4 sm:px-6 ">
+
                   <Settings className="h-5 w-5 text-accent-cyan" />
                 </div>
                 <h2 className="font-display text-xl font-bold text-white">Settings</h2>
