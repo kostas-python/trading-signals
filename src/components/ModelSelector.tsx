@@ -53,20 +53,21 @@ export function ModelSelector({ selectedModel, onModelChange, compact = false }:
 
   if (compact) {
     return (
-      <div className="relative">
+      <div className="relative min-w-0">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className={`
-            flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
+            flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium
             border transition-all duration-300
             bg-gradient-to-r ${currentStyle.gradient}
             ${currentStyle.border}
             shadow-lg ${currentStyle.glow}
+            max-w-[120px] sm:max-w-none w-full
           `}
         >
-          {getProviderIcon(currentModel.provider)}
-          <span>{currentModel.name}</span>
-          <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <span className="shrink-0">{getProviderIcon(currentModel.provider)}</span>
+          <span className="truncate">{currentModel.name}</span>
+          <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
         <AnimatePresence>
@@ -75,7 +76,7 @@ export function ModelSelector({ selectedModel, onModelChange, compact = false }:
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="absolute top-full right-0 mt-2 w-72 z-50"
+              className="absolute top-full right-0 mt-2 w-64 z-50"
             >
               <div className="rounded-xl border border-terminal-border bg-terminal-surface/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                 {Object.entries(AI_MODELS).map(([key, model]) => {
@@ -100,14 +101,14 @@ export function ModelSelector({ selectedModel, onModelChange, compact = false }:
                         border-b border-terminal-border/50 last:border-b-0
                       `}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-lg ${style.badge.split(' ')[1]}`}>{style.icon}</span>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-white text-sm">{model.name}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`shrink-0 text-lg ${style.badge.split(' ')[1]}`}>{style.icon}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium text-white text-sm truncate">{model.name}</span>
                               {model.costPer1MTokens === 'free' && (
-                                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-500/20 text-green-400 rounded border border-green-500/50">
+                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold bg-green-500/20 text-green-400 rounded border border-green-500/50">
                                   FREE
                                 </span>
                               )}
@@ -115,8 +116,8 @@ export function ModelSelector({ selectedModel, onModelChange, compact = false }:
                             <span className="text-xs text-terminal-muted">{style.name}</span>
                           </div>
                         </div>
-                        {isSelected && <Check className="h-4 w-4 text-green-400" />}
-                        {!isAvailable && <Lock className="h-4 w-4 text-terminal-muted" />}
+                        {isSelected && <Check className="h-4 w-4 shrink-0 text-green-400" />}
+                        {!isAvailable && <Lock className="h-4 w-4 shrink-0 text-terminal-muted" />}
                       </div>
                     </button>
                   );

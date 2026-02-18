@@ -219,45 +219,45 @@ export function AssetDetail({
 
           {/* AI Analysis Section */}
           {signal && (
-  <div className="mt-6">
-    <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
-      <h3 className="font-display text-lg font-semibold text-white flex items-center gap-2">
-        <span className="text-xl">{currentStyle.icon}</span>
-        AI Analysis
-      </h3>
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="min-w-0 flex-1 sm:flex-none">
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-            compact
-          />
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={fetchAIAnalysis}
-          disabled={isLoadingAI}
-          className={`
-            flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all
-            bg-gradient-to-r ${currentStyle.gradient} ${currentStyle.border}
-            disabled:opacity-50
-          `}
-        >
-          {isLoadingAI ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-white">Analyzing...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 text-white" />
-              <span className="text-white">{aiAnalysis ? 'Regenerate' : 'Generate'}</span>
-            </>
-          )}
-        </motion.button>
-      </div>
-    </div>
+          <div className="mt-6">
+            <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-display text-lg font-semibold text-white flex items-center gap-2">
+                <span className="text-xl">{currentStyle.icon}</span>
+                AI Analysis
+              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="min-w-0 flex-1 sm:flex-none">
+                  <ModelSelector
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    compact
+                  />
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={fetchAIAnalysis}
+                  disabled={isLoadingAI}
+                  className={`
+                    flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all
+                    bg-gradient-to-r ${currentStyle.gradient} ${currentStyle.border}
+                    disabled:opacity-50
+                  `}
+                >
+                  {isLoadingAI ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-white">Analyzing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 text-white" />
+                      <span className="text-white">{aiAnalysis ? 'Regenerate' : 'Generate'}</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </div>
 
               {aiAnalysis && (
                 <motion.div
