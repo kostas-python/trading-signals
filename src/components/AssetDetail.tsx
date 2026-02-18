@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, TrendingDown, ExternalLink, Star, Sparkles, Loader2 } from 'lucide-react';
 import { Asset, CombinedSignal, IndicatorResult } from '@/types';
@@ -30,6 +30,8 @@ export function AssetDetail({
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
   const [usedProvider, setUsedProvider] = useState<string | null>(null);
+  const [sparklineWidth, setSparklineWidth] = useState(550);
+  const sparklineRef = useRef<HTMLDivElement>(null);
 
   if (!asset) return null;
 
@@ -81,6 +83,15 @@ export function AssetDetail({
       setIsLoadingAI(false);
     }
   };
+
+  useEffect(() => {
+    if (!sparklineRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setSparklineWidth(entry.contentRect.width);
+    });
+    observer.observe(sparklineRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <AnimatePresence>
@@ -176,11 +187,11 @@ export function AssetDetail({
 
           {/* Chart */}
           {asset.sparkline && (
-            <div className="mt-6 rounded-xl border border-terminal-border bg-terminal-surface/30 p-4">
+            <div ref={sparklineRef} className="mt-6 rounded-xl border border-terminal-border bg-terminal-surface/30 p-4">
               <p className="mb-2 text-sm text-terminal-muted">7 Day Price</p>
               <Sparkline
                 data={asset.sparkline}
-                width={550}
+                width={sparklineWidth}
                 height={120}
               />
             </div>
