@@ -218,7 +218,7 @@ export function AssetDetail({
           )}
 
           {/* AI Analysis Section */}
-          {signal && (
+        {signal && (
           <div className="mt-6">
             <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-display text-lg font-semibold text-white flex items-center gap-2">

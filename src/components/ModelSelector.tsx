@@ -76,7 +76,7 @@ export function ModelSelector({ selectedModel, onModelChange, compact = false }:
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="absolute top-full right-0 mt-2 w-64 z-50"
+              className="absolute top-full -right-42 mt-2 w-64 z-50 max-w-[calc(100vw-2rem)] sm:-right-8"
             >
               <div className="rounded-xl border border-terminal-border bg-terminal-surface/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                 {Object.entries(AI_MODELS).map(([key, model]) => {
