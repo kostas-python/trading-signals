@@ -360,7 +360,7 @@ export function AlertSettings() {
           <ToggleRow
             icon={<Brain className="h-3 w-3 sm:h-4 sm:w-4" />}
             label="Include AI Analysis"
-            description={`Using ${currentModel.name}`}
+            description={currentModel.name}
             enabled={config.ai_analysis_enabled}
             onChange={(v) => updateConfig({ ai_analysis_enabled: v })}
           />
@@ -414,17 +414,18 @@ export function AlertSettings() {
                     </div>
                   </div>
 
-                  {/* AI Model */}
+                 {/* AI Model */}
                   <div>
                     <label className="text-[10px] sm:text-xs text-terminal-muted">AI Model for Analysis</label>
                     <select
                       value={config.ai_model}
                       onChange={(e) => updateConfig({ ai_model: e.target.value })}
-                      className="w-full mt-1 rounded-lg border border-terminal-border bg-terminal-surface px-2 sm:px-3 py-1.5 sm:py-2 text-white text-xs sm:text-sm"
+                      className="w-full mt-1 rounded-lg border border-terminal-border bg-terminal-surface px-2 sm:px-3 py-1.5 sm:py-2 text-white text-xs sm:text-sm truncate max-w-full"
+                      style={{ textOverflow: 'ellipsis' }}
                     >
                       {Object.entries(AI_MODELS).map(([key, model]) => (
-                        <option key={key} value={key}>
-                          {model.name} ({model.provider})
+                        <option key={key} value={key} className="truncate">
+                          {model.name}
                         </option>
                       ))}
                     </select>
