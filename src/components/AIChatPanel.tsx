@@ -75,7 +75,7 @@ export function AIChatPanel({ assets, signals }: AIChatPanelProps) {
         body: JSON.stringify({
           message: userMessage.content,
           context: { assets, signals },
-          model: selectedModel, // Pass selected model
+          model: selectedModel,
         }),
       });
 
@@ -121,20 +121,22 @@ export function AIChatPanel({ assets, signals }: AIChatPanelProps) {
 
   return (
     <>
-      {/* Floating button */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full border border-accent-purple/50 bg-terminal-surface shadow-lg shadow-accent-purple/20"
-      >
-        <div className="relative">
-          <MessageCircle className="h-6 w-6 text-accent-purple" />
-          <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-accent-cyan" />
-        </div>
-      </motion.button>
+      {/* Floating button — hidden when panel is open on mobile */}
+      {!isOpen && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full border border-accent-purple/50 bg-terminal-surface shadow-lg shadow-accent-purple/20"
+        >
+          <div className="relative">
+            <MessageCircle className="h-6 w-6 text-accent-purple" />
+            <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-accent-cyan" />
+          </div>
+        </motion.button>
+      )}
 
       {/* Chat panel */}
       <AnimatePresence>
@@ -143,22 +145,22 @@ export function AIChatPanel({ assets, signals }: AIChatPanelProps) {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-6 right-6 z-50 flex h-[550px] w-[400px] flex-col overflow-hidden rounded-2xl border border-terminal-border bg-terminal-bg shadow-2xl"
+            className="fixed bottom-0 right-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden border border-terminal-border bg-terminal-bg shadow-2xl sm:bottom-6 sm:right-6 sm:h-[550px] sm:w-[400px] sm:rounded-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-terminal-border bg-terminal-surface px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${currentStyle.gradient}`}>
+            <div className="flex items-center justify-between border-b border-terminal-border bg-terminal-surface px-4 py-3 overflow-visible">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${currentStyle.gradient}`}>
                   <span className="text-lg">{currentStyle.icon}</span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="font-semibold text-white">AI Assistant</h3>
-                  <p className="text-xs text-terminal-muted">
+                  <p className="text-xs text-terminal-muted truncate">
                     {currentModel?.name || 'Select model'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <ModelSelector
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
@@ -205,7 +207,6 @@ export function AIChatPanel({ assets, signals }: AIChatPanelProps) {
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">
                       {message.content}
                     </p>
-                    {/* Show model badge for assistant messages */}
                     {message.role === 'assistant' && message.provider && (
                       <p className="mt-1 text-[10px] text-terminal-muted opacity-60">
                         via {message.provider}
